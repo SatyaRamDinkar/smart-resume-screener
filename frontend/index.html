@@ -105,13 +105,35 @@ async function runMatching() {
   if (!resumeIds.length) { alert("Upload resumes first."); return; }
   const statusEl = document.getElementById("status");
   statusEl.textContent = "Scoring resumes with the LLM, please wait...";
+  statusEl.style.color = "#64748b";
+
   for (const resume_id of resumeIds) {
-    await fetch(`${API}/match`, {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ resume_id, job_id: currentJobId })
-    });
+    try {
+      const res = await fetch(`${API}/match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume_id, job_id: currentJobId })
+      });
+      
+      if (!res.ok) {
+        // Backend might return HTML (500 error page) instead of JSON
+        const text = await res.text();
+        statusEl.textContent = `Server Error ${res.status}: ${text.substring(0, 200)}`;
+        statusEl.style.color = "red";
+        return;
+      }
+      
+      // Only parse JSON if response was OK
+      await res.json();
+      
+    } catch (e) {
+      statusEl.textContent = `Network Error: ${e.message}`;
+      statusEl.style.color = "red";
+      return;
+    }
   }
   statusEl.textContent = "Done.";
+  statusEl.style.color = "green";
   await loadResults();
 }
 
