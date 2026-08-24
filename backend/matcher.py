@@ -1,41 +1,44 @@
 """
 matcher.py
 ----------
-Uses an LLM (Claude, via the Anthropic API) to semantically compare a
-parsed resume against a job description and produce a 1-10 fit score with
+Uses an LLM (Google Gemini, free tier) to semantically compare a parsed
+resume against a job description and produce a 1-10 fit score with
 justification. This is the "LLM Usage" piece called out in the assignment
 brief.
 
-Requires the environment variable ANTHROPIC_API_KEY to be set.
+Requires the environment variable GOOGLE_API_KEY to be set.
+Get a free key at: https://aistudio.google.com/apikey
 """
 
 import os
 import re
 import json
-from anthropic import Anthropic
+from google import genai
+from google.genai import types
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "gemini-2.0-flash"  # fast + free-tier friendly
 
-client = None
+_client = None
 
 
-def get_client() -> Anthropic:
-    global client
-    if client is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+def _get_client():
+    global _client
+    if _client is None:
+        api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "ANTHROPIC_API_KEY is not set. Add it to your .env file "
-                "(see .env.example) before calling /match."
+                "GOOGLE_API_KEY is not set. Add it to your .env file "
+                "(see .env.example) before calling /match. Get a free key "
+                "at https://aistudio.google.com/apikey"
             )
-        client = Anthropic(api_key=api_key)
-    return client
+        _client = genai.Client(api_key=api_key)
+    return _client
 
 
 PROMPT_TEMPLATE = """Compare the following resume with this job description and \
 rate fit on 1-10 with justification.
 
-Respond ONLY with a JSON object in this exact shape, no other text:
+Respond ONLY with a JSON object in this exact shape, no other text, no markdown fences:
 {{"score": <integer 1-10>, "justification": "<2-3 sentence explanation>"}}
 
 Resume:
@@ -63,14 +66,16 @@ def build_prompt(resume: dict, job_text: str) -> str:
 
 
 def score_resume_against_job(resume: dict, job_text: str) -> dict:
-    """Calls Claude to get a {score, justification} dict for one resume/job pair."""
+    """Calls Gemini to get a {score, justification} dict for one resume/job pair."""
+    client = _get_client()
     prompt = build_prompt(resume, job_text)
-    response = get_client().messages.create(
+
+    response = client.models.generate_content(
         model=MODEL,
-        max_tokens=300,
-        messages=[{"role": "user", "content": prompt}],
+        contents=prompt,
+        config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=300),
     )
-    text = "".join(block.text for block in response.content if block.type == "text")
+    text = (response.text or "").strip()
 
     # Be defensive: strip code fences if the model adds them, then parse JSON.
     cleaned = re.sub(r"```json|```", "", text).strip()

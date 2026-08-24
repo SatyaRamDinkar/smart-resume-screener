@@ -1,7 +1,7 @@
 # Smart Resume Screener
 
 Intelligently parses resumes, extracts structured candidate data, and uses an
-LLM (Claude) to compute a semantic fit score against a job description —
+LLM (Google Gemini) to compute a semantic fit score against a job description —
 returning a ranked, shortlisted candidate list with justifications.
 
 ## Objective
@@ -30,7 +30,7 @@ Given one or more resumes (PDF/text) and a job description, the system:
 ┌──────────────────┐                ┌───────────────────┐
 │ resume_parser.py  │                │    matcher.py      │
 │ - PDF/text extract│                │ - builds LLM prompt│
-│ - rule-based skill/│                │ - calls Claude API │
+│ - rule-based skill/│                │ - calls Gemini API  │
 │   education/exp.   │                │ - parses JSON score│
 │   extraction       │                └─────────┬──────────┘
 └──────────┬─────────┘                          │
@@ -55,13 +55,13 @@ pipeline fast and minimizing API usage/cost.
 - **Backend:** FastAPI (Python)
 - **Database:** SQLite (Python stdlib `sqlite3`, no ORM — kept dependency-free)
 - **Resume parsing:** `pypdf` for PDF text extraction + rule-based extraction
-- **LLM:** Anthropic Claude API (`anthropic` Python SDK) for match scoring
+- **LLM:** Google Gemini API (`google-genai` Python SDK, free tier) for match scoring
 - **Frontend:** Single static HTML/JS dashboard (no framework/build step)
 
 ## LLM Usage
 
 The LLM is used exclusively for **semantic matching & scoring** in
-`backend/matcher.py`. Prompt template sent to Claude for every resume/job pair:
+`backend/matcher.py`. Prompt template sent to Gemini for every resume/job pair:
 
 ```
 Compare the following resume with this job description and rate fit on
@@ -94,7 +94,7 @@ smart-resume-screener/
 │   ├── main.py            # FastAPI app & routes
 │   ├── database.py        # SQLite schema + CRUD helpers
 │   ├── resume_parser.py   # PDF/text extraction + rule-based field extraction
-│   ├── matcher.py         # LLM prompt + Claude API call
+│   ├── matcher.py         # LLM prompt + Gemini API call
 │   ├── models.py          # Pydantic request/response schemas
 │   └── requirements.txt
 ├── frontend/
@@ -114,9 +114,9 @@ cd smart-resume-screener/backend
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Set your Anthropic API key
+# 3. Set your free Gemini API key (get one at https://aistudio.google.com/apikey)
 cp ../.env.example .env
-# then edit .env and add your real ANTHROPIC_API_KEY
+# then edit .env and add your real GOOGLE_API_KEY
 export $(cat .env | xargs)   # or use a tool like python-dotenv / direnv
 
 # 4. Run the server
