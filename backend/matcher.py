@@ -32,8 +32,8 @@ def _get_client():
 PROMPT_TEMPLATE = """Compare the following resume with this job description and rate fit on 1-10 with justification.
 
 Respond ONLY with a JSON object in this exact shape, no other text, no markdown fences.
-Keep the justification under 120 characters.
-{{"score": <integer 1-10>, "justification": "<concise explanation under 120 chars>"}}
+Keep the justification under 100 characters.
+{{"score": <integer 1-10>, "justification": "<concise explanation under 100 chars>"}}
 
 Resume:
 Candidate: {candidate_name}
@@ -64,26 +64,24 @@ def build_prompt(resume: dict, job_text: str) -> str:
         skills=_parse_field(resume.get("skills", [])),
         education=_parse_field(resume.get("education", [])),
         experience=_parse_field(resume.get("experience", [])),
-        resume_text=resume.get("raw_text", "")[:4000],
-        job_text=job_text[:3000],
+        resume_text=resume.get("raw_text", "")[:2000],  # Reduced from 4000
+        job_text=job_text[:2000],  # Reduced from 3000
     )
 
 
 def _extract_json(text: str) -> dict:
-    """Aggressively extract JSON from model response, even if truncated."""
+    """Extract JSON from model response, even if truncated."""
     if not text:
         raise ValueError("Empty response")
 
     text = text.strip().lstrip("\ufeff")
     cleaned = re.sub(r"^```json\s*|^```\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
 
-    # Try direct parse
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
-    # Find first { and last }
     start = cleaned.find("{")
     end = cleaned.rfind("}")
     if start != -1 and end != -1 and end > start:
@@ -92,7 +90,6 @@ def _extract_json(text: str) -> dict:
         except json.JSONDecodeError:
             pass
 
-    # Regex for complete JSON
     match = re.search(r'\{\s*"score"\s*:\s*\d+.*?"justification"\s*:\s*".*?"\s*\}', cleaned, re.DOTALL)
     if match:
         try:
@@ -100,13 +97,12 @@ def _extract_json(text: str) -> dict:
         except json.JSONDecodeError:
             pass
 
-    # FALLBACK: Extract score and justification even from truncated JSON
+    # Fallback: extract from truncated JSON
     score_match = re.search(r'"score"\s*:\s*(\d+)', cleaned)
     just_match = re.search(r'"justification"\s*:\s*"([^"]*)', cleaned, re.DOTALL)
-
     if score_match:
         score = int(score_match.group(1))
-        justification = just_match.group(1).strip() if just_match else "Justification truncated by model."
+        justification = just_match.group(1).strip() if just_match else "Justification truncated."
         return {"score": score, "justification": justification}
 
     raise ValueError(f"No valid JSON found. Raw: {cleaned[:200]}")
@@ -121,7 +117,8 @@ def score_resume_against_job(resume: dict, job_text: str) -> dict:
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.2,
-            max_output_tokens=1024,  # Doubled from 500
+            max_output_tokens=1024,
+            response_mime_type="application/json",  # Forces JSON output!
         ),
     )
     text = (response.text or "").strip()
