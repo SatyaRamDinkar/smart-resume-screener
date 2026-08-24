@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Smart Resume Screener</title>
+<style>
+  :root { --accent: #4f46e5; --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); margin: 0; padding: 2rem; color: #1e293b; }
+  h1 { margin-top: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+  label { display: block; font-weight: 600; margin-bottom: .25rem; font-size: .9rem; }
+  input, textarea, select { width: 100%; padding: .5rem; border: 1px solid var(--border); border-radius: 6px; margin-bottom: .75rem; font-family: inherit; }
+  textarea { min-height: 100px; resize: vertical; }
+  button { background: var(--accent); color: white; border: none; padding: .6rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; }
+  button:hover { opacity: .9; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 10px; overflow: hidden; }
+  th, td { padding: .6rem .75rem; text-align: left; border-bottom: 1px solid var(--border); font-size: .9rem; }
+  th { background: #eef2ff; }
+  .shortlisted { background: #ecfdf5; }
+  .pill { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+  .pill.yes { background: #10b981; color: white; }
+  .pill.no { background: #cbd5e1; color: #334155; }
+  #status { font-size: .85rem; color: #64748b; margin-top: .5rem; }
+</style>
+</head>
+<body>
+<h1>🧠 Smart Resume Screener</h1>
+
+<div class="grid">
+  <div class="card">
+    <h3>1. Add Job Description</h3>
+    <label>Title</label>
+    <input id="jobTitle" placeholder="e.g. Backend Engineer" />
+    <label>Description</label>
+    <textarea id="jobText" placeholder="Paste the job description..."></textarea>
+    <button onclick="submitJob()">Save Job</button>
+    <div id="jobStatus" class="pill no" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h3>2. Upload Resumes</h3>
+    <label>Resume file(s) (.pdf or .txt)</label>
+    <input id="resumeFiles" type="file" accept=".pdf,.txt" multiple />
+    <button onclick="uploadResumes()">Upload & Parse</button>
+    <div id="resumeStatus" class="pill no" style="display:none"></div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem;">
+  <h3>3. Run Matching</h3>
+  <p>Job ID: <span id="currentJobId">none yet</span> &nbsp; | &nbsp;
+     Resumes uploaded this session: <span id="resumeCount">0</span></p>
+  <button onclick="runMatching()">Match all uploaded resumes to job</button>
+  <div id="status"></div>
+</div>
+
+<h3>Ranked Candidates</h3>
+<table>
+  <thead>
+    <tr><th>Rank</th><th>Candidate</th><th>Score</th><th>Shortlisted</th><th>Skills</th><th>Justification</th></tr>
+  </thead>
+  <tbody id="resultsBody"></tbody>
+</table>
+
+<script>
+const API = "/api";
+let currentJobId = null;
+let resumeIds = [];
+
+async function submitJob() {
+  const title = document.getElementById("jobTitle").value || "Untitled Role";
+  const text = document.getElementById("jobText").value;
+  if (!text.trim()) { alert("Paste a job description first."); return; }
+  const res = await fetch(`${API}/job-descriptions`, {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ title, text })
+  });
+  const data = await res.json();
+  currentJobId = data.id;
+  document.getElementById("currentJobId").textContent = currentJobId;
+  const badge = document.getElementById("jobStatus");
+  badge.style.display = "inline-block"; badge.className = "pill yes"; badge.textContent = "Saved ✓";
+}
+
+async function uploadResumes() {
+  const files = document.getElementById("resumeFiles").files;
+  if (!files.length) { alert("Choose at least one resume file."); return; }
+  resumeIds = [];
+  for (const file of files) {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API}/resumes`, { method: "POST", body: form });
+    const data = await res.json();
+    resumeIds.push(data.id);
+  }
+  document.getElementById("resumeCount").textContent = resumeIds.length;
+  const badge = document.getElementById("resumeStatus");
+  badge.style.display = "inline-block"; badge.className = "pill yes"; badge.textContent = "Uploaded ✓";
+}
+
+async function runMatching() {
+  if (!currentJobId) { alert("Save a job description first."); return; }
+  if (!resumeIds.length) { alert("Upload resumes first."); return; }
+  const statusEl = document.getElementById("status");
+  statusEl.textContent = "Scoring resumes with the LLM, please wait...";
+  for (const resume_id of resumeIds) {
+    await fetch(`${API}/match`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ resume_id, job_id: currentJobId })
+    });
+  }
+  statusEl.textContent = "Done.";
+  await loadResults();
+}
+
+async function loadResults() {
+  if (!currentJobId) return;
+  const res = await fetch(`${API}/results/${currentJobId}`);
+  const rows = await res.json();
+  rows.sort((a, b) => b.score - a.score);
+  const body = document.getElementById("resultsBody");
+  body.innerHTML = "";
+  rows.forEach((r, i) => {
+    const tr = document.createElement("tr");
+    if (r.shortlisted) tr.className = "shortlisted";
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${r.candidate_name}</td>
+      <td><strong>${r.score}/10</strong></td>
+      <td><span class="pill ${r.shortlisted ? 'yes' : 'no'}">${r.shortlisted ? 'Yes' : 'No'}</span></td>
+      <td>${r.skills.join(", ")}</td>
+      <td>${r.justification}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+</script>
+</body>
+</html>
