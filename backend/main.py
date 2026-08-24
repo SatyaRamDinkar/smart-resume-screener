@@ -1,7 +1,16 @@
+from dotenv import load_dotenv
+import os
+
+# Load .env from the same folder as this file (backend/.env)
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(env_path)
+
 """
 main.py
 -------
 FastAPI backend for the Smart Resume Screener.
+
+
 
 Endpoints:
   POST /api/resumes            -> upload + parse a resume (PDF or .txt)
@@ -11,8 +20,8 @@ Endpoints:
 
 Run with:
   uvicorn main:app --reload
-"""
 
+"""
 import json
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
