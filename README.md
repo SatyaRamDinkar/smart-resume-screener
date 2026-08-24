@@ -150,6 +150,6 @@ Candidates scoring **7 or higher** are marked "Shortlisted" in the results
 
 - No `node_modules`, `.env`, build artifacts, or editor-specific files are
   committed (see `.gitignore`).
-- Dependencies are kept minimal — only what's strictly required (5 packages).
+- Dependencies are kept minimal — only what's strictly required (6 packages).
 - SQLite (stdlib-adjacent, file-based) is used instead of a heavier database
   to avoid extra infrastructure/services.
