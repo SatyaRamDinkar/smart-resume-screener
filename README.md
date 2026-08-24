@@ -153,3 +153,6 @@ Candidates scoring **7 or higher** are marked "Shortlisted" in the results
 - Dependencies are kept minimal — only what's strictly required (6 packages).
 - SQLite (stdlib-adjacent, file-based) is used instead of a heavier database
   to avoid extra infrastructure/services.
+
+## 🎥 Demo Video
+[Watch the 2-minute demo here](https://drive.google.com/file/d/1Jjf_3xPsCy41OnNA6ryl2RPC25Fadexc/view?usp=sharing)
