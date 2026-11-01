@@ -1,5 +1,9 @@
 # Smart Resume Screener
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://smart-resume-screener-chttyujpye3zzw2zk5xewc.streamlit.app/)
+
+🌐 **Live Streamlit App:** [https://smart-resume-screener-chttyujpye3zzw2zk5xewc.streamlit.app/](https://smart-resume-screener-chttyujpye3zzw2zk5xewc.streamlit.app/)
+
 Intelligently parses resumes, extracts structured candidate data, and uses an
 LLM (Google Gemini) to compute a semantic fit score against a job description —
 returning a ranked, shortlisted candidate list with justifications.
