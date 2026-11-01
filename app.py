@@ -108,33 +108,45 @@ Resume Text:
 {parsed_resume.get("raw_text", "")[:2500]}
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            max_output_tokens=1024,
-            response_mime_type="application/json",
-        ),
-    )
-    raw_text = (response.text or "").strip()
-    
-    # Clean JSON
-    cleaned = re.sub(r"^```json\s*|^```\s*|\s*```$", "", raw_text, flags=re.MULTILINE).strip()
-    try:
-        data = json.loads(cleaned)
-    except Exception:
-        score_match = re.search(r'"score"\s*:\s*(\d+)', cleaned)
-        just_match = re.search(r'"justification"\s*:\s*"([^"]*)', cleaned)
-        score = int(score_match.group(1)) if score_match else 5
-        just = just_match.group(1) if just_match else "Evaluation completed."
-        data = {"score": score, "justification": just}
+    # List of candidate models in order of capability
+    candidate_models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash"]
+    last_error = None
 
-    score = max(1, min(10, int(data.get("score", 0))))
-    return {
-        "score": score,
-        "justification": data.get("justification", "No justification provided.")
-    }
+    for model_name in candidate_models:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.2,
+                    max_output_tokens=1024,
+                    response_mime_type="application/json",
+                ),
+            )
+            raw_text = (response.text or "").strip()
+            
+            # Clean JSON
+            cleaned = re.sub(r"^```json\s*|^```\s*|\s*```$", "", raw_text, flags=re.MULTILINE).strip()
+            try:
+                data = json.loads(cleaned)
+            except Exception:
+                score_match = re.search(r'"score"\s*:\s*(\d+)', cleaned)
+                just_match = re.search(r'"justification"\s*:\s*"([^"]*)', cleaned)
+                score = int(score_match.group(1)) if score_match else 5
+                just = just_match.group(1) if just_match else "Evaluation completed."
+                data = {"score": score, "justification": just}
+
+            score = max(1, min(10, int(data.get("score", 0))))
+            return {
+                "score": score,
+                "justification": data.get("justification", "No justification provided.")
+            }
+        except Exception as e:
+            last_error = e
+            # Try next model if 404 or deprecated
+            continue
+
+    raise last_error
 
 # ----------------- UI Layout -----------------
 # Custom CSS for styling
@@ -211,7 +223,7 @@ col1, col2 = st.columns([1, 1], gap="medium")
 
 with col1:
     st.subheader("1. Job Description")
-    job_title = st.text_input("Job Title", placeholder="e.g. Senior Python / Data Engineer")
+    job_title = st.text_input("Job Title", placeholder="e.g. Senior AI / Machine Learning Engineer")
     job_description = st.text_area(
         "Job Description & Requirements",
         height=220,
